@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>実寸キャリブレーション＋画像実寸表示</title>
+<title>実寸キャリブレーション＋ギャラリー（GitHub Pages用）</title>
 <style>
   :root { --accent: #007aff; }
   body{font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:16px; line-height:1.5}
@@ -11,61 +11,52 @@
   h2{font-size:1.05rem;margin:16px 0 8px}
   .card{border:1px solid #ddd; border-radius:12px; padding:12px; margin:12px 0; box-shadow: 0 1px 2px rgba(0,0,0,.04)}
   .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-  .label{font-weight:600; margin-right:8px}
+  .pill{background:#f5f5f5;border:1px solid #e1e1e1;padding:4px 8px;border-radius:999px}
   #creditbar{height:20px;background:#e9e9e9;border:1px solid #bbb;border-radius:10px}
   button{padding:10px 14px; border-radius:10px; border:1px solid #bbb; background:#fff}
   button.primary{background:var(--accent); color:#fff; border-color:var(--accent)}
   input[type="number"]{width:90px;padding:8px 10px;border:1px solid #ccc;border-radius:8px}
-  input[type="text"]{padding:8px 10px;border:1px solid #ccc;border-radius:8px;flex:1}
+  .muted{color:#666}
   .grid{display:grid; grid-template-columns: 1fr; gap:12px}
   .stim{background:#fff; padding:8px; border:1px dashed #ccc; border-radius:12px; text-align:center}
   .stim img{display:block; margin:0 auto}
-  .muted{color:#666}
-  .hr{height:1px;background:#eee;margin:12px 0}
-  .pill{background:#f5f5f5;border:1px solid #e1e1e1;padding:4px 8px;border-radius:999px}
-  .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.95em; background:#f3f3f3; border:1px solid #ddd; border-radius:6px; padding:2px 6px}
+  .toolbar{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .tag{padding:6px 10px;border-radius:999px;border:1px solid #ddd;background:#f7f7f7;cursor:pointer}
+  .tag.active{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .small{font-size:.9em}
 </style>
 </head>
 <body>
-  <h1>実寸キャリブレーション＋画像実寸表示</h1>
-  <div class="card">
-    <h2>① キャリブレーション（最初の一度だけ）</h2>
-    <div>下の灰色バーの幅を、手元の<span class="pill">クレジットカード横幅 85.6 mm</span>に指で合わせてください。</div>
-    <div class="row" style="margin-top:8px">
-      <input id="range" type="range" min="50" max="1000" value="320" style="flex:1">
-      <button id="save" class="primary">この幅で保存</button>
-    </div>
-    <div id="creditbar" style="width:320px; margin-top:10px"></div>
-    <div class="row" style="margin-top:8px">
-      <span id="status" class="muted">未保存</span>
-      <button id="reset" title="保存値をクリア">リセット</button>
-    </div>
-    <div class="muted" style="margin-top:6px">保存後はズーム倍率を変えないでください。変えた場合は再キャリブレーションをお願いします。</div>
-  </div>
+<h1>実寸キャリブレーション＋ギャラリー</h1>
 
-  <div class="card">
-    <h2>② 画像を選んで実寸表示</h2>
-    <div class="row">
-      <span class="label">幅(mm)</span>
-      <input id="mm" type="number" step="0.1" value="5">
-      <button id="apply" class="primary">表示</button>
-      <input id="file" type="file" accept="image/*" multiple>
-    </div>
-    <div class="row" style="margin-top:4px">
-      <span class="muted">ローカル画像を選ぶ（上のファイル選択）か、URLを1行ずつ貼ってください。</span>
-    </div>
-    <textarea id="urls" rows="3" placeholder="https://example.com/a.png&#10;https://example.com/b.png" style="width:100%;margin-top:6px;padding:8px;border:1px solid #ccc;border-radius:8px"></textarea>
-    <div class="row" style="margin-top:8px">
-      <button id="clear">一覧クリア</button>
-      <label class="row" style="gap:6px"><input id="shuffle" type="checkbox">ランダム順</label>
-      <label class="row" style="gap:6px"><input id="labels" type="checkbox" checked>ファイル名ラベル</label>
-    </div>
+<div class="card">
+  <h2>① キャリブレーション</h2>
+  <div>灰色バーの幅を、手元の<span class="pill">クレカ横幅 85.6 mm</span>に指で合わせてください。</div>
+  <div class="row" style="margin-top:8px">
+    <input id="range" type="range" min="50" max="1000" value="320" style="flex:1">
+    <button id="save" class="primary">この幅で保存</button>
+    <button id="reset">リセット</button>
   </div>
+  <div id="creditbar" style="width:320px; margin-top:10px"></div>
+  <div class="muted small" id="status" style="margin-top:6px">未保存</div>
+</div>
 
-  <div class="card">
-    <h2>プレビュー</h2>
-    <div id="out" class="grid"></div>
+<div class="card">
+  <h2>② 表示設定</h2>
+  <div class="toolbar">
+    <div>幅(mm)：<input id="mm" type="number" step="0.1" value="5"></div>
+    <label><input id="shuffle" type="checkbox"> ランダム順</label>
+    <label><input id="labels" type="checkbox" checked> ラベル表示</label>
+    <button id="apply" class="primary">読み込み/更新</button>
   </div>
+  <div class="muted small" style="margin-top:6px">画像はこのページと同じリポジトリの <code>img/</code> フォルダから読み込みます（<code>img/manifest.json</code>）。</div>
+  <div class="toolbar" id="tags" style="margin-top:8px"></div>
+</div>
+
+<div class="card">
+  <h2>ギャラリー</h2>
+  <div id="out" class="grid"><div class="muted">「読み込み/更新」を押してください。</div></div>
+</div>
 
 <script>
 const range = document.getElementById('range');
@@ -74,78 +65,60 @@ const statusEl = document.getElementById('status');
 const saveBtn = document.getElementById('save');
 const resetBtn = document.getElementById('reset');
 const applyBtn = document.getElementById('apply');
-const fileInput = document.getElementById('file');
-const urlsTa = document.getElementById('urls');
 const out = document.getElementById('out');
 const mmInput = document.getElementById('mm');
 const shuffleCb = document.getElementById('shuffle');
 const labelsCb = document.getElementById('labels');
+const tagsEl = document.getElementById('tags');
+let selectedTag = 'all';
 
 function setBar(px){ creditbar.style.width = px + 'px'; }
 range.oninput = e => setBar(e.target.value);
-
 function getK(){ return +localStorage.getItem('mm_per_csspx') || 0; }
-function setK(k){
-  localStorage.setItem('mm_per_csspx', k);
-  statusEl.textContent = k>0 ? `保存済み: 1px = ${k.toFixed(4)} mm` : '未保存';
-}
-
-(function init(){
-  const k = getK();
-  if(k>0){ statusEl.textContent = `保存済み: 1px = ${k.toFixed(4)} mm`; }
-  setBar(range.value);
-})();
-
-saveBtn.onclick = ()=>{
-  const px = parseFloat(getComputedStyle(creditbar).width);
-  const mmPerPx = 85.6 / px;
-  setK(mmPerPx);
-  alert('保存しました。以降はズームを変えないでください。');
-};
+function setK(k){ localStorage.setItem('mm_per_csspx', k); statusEl.textContent = k>0 ? `保存済み: 1px = ${k.toFixed(4)} mm` : '未保存'; }
+(function init(){ const k = getK(); if(k>0){ statusEl.textContent = `保存済み: 1px = ${k.toFixed(4)} mm`; } setBar(range.value);} )();
+saveBtn.onclick = ()=>{ const px = parseFloat(getComputedStyle(creditbar).width); const mmPerPx = 85.6 / px; setK(mmPerPx); alert('保存しました。以降はズームを変えないでください。'); };
 resetBtn.onclick = ()=>{ localStorage.removeItem('mm_per_csspx'); setK(0); };
 
-function pxFromMM(mm){
-  const k = getK();
-  if(!(k>0)) { alert('先に①のキャリブレーションを保存してください。'); throw new Error('no calib'); }
-  return Math.max(1, Math.round(mm / k));
-}
+function pxFromMM(mm){ const k = getK(); if(!(k>0)) { alert('先に①のキャリブレーションを保存してください。'); throw new Error('no calib'); } return Math.max(1, Math.round(mm / k)); }
+function shuffle(arr){ for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
 
-function fileListToUrls(fileList){
-  return Promise.all([...fileList].map(f=>new Promise(res=>{
-    const r = new FileReader();
-    r.onload = ()=>res({src:r.result, label:f.name});
-    r.readAsDataURL(f);
-  })));
-}
-
-function parseUrls(text){
-  return text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(u=>({src:u, label:u.split('/').pop()}));
-}
-
-function shuffle(arr){
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+function renderTags(items){
+  const tags = Array.from(new Set(items.flatMap(x => x.tags || [])));
+  tags.unshift('all');
+  tagsEl.innerHTML = '';
+  for(const t of tags){
+    const b = document.createElement('button');
+    b.className = 'tag' + (t===selectedTag?' active':'');
+    b.textContent = t;
+    b.onclick = ()=>{ selectedTag = t; render(items); renderTags(items); };
+    tagsEl.appendChild(b);
   }
-  return arr;
 }
 
-async function render(){
+function filterByTag(items){
+  if(selectedTag==='all') return items;
+  return items.filter(x => (x.tags||[]).includes(selectedTag));
+}
+
+async function loadManifest(){
+  const res = await fetch('img/manifest.json?v=' + Date.now());
+  if(!res.ok) throw new Error('manifest.json が読み込めませんでした');
+  return res.json(); // { images: [{src:"foo.png", label:"標準", tags:["標準","凸"]}, ...] }
+}
+
+function render(items){
   out.innerHTML = '';
   const wantMM = +mmInput.value;
-  let items = [];
-  if(fileInput.files && fileInput.files.length){
-    items = items.concat(await fileListToUrls(fileInput.files));
-  }
-  items = items.concat(parseUrls(urlsTa.value));
-  if(!items.length){ out.innerHTML = '<div class="muted">画像を選択またはURLを入力してください。</div>'; return; }
-  if(shuffleCb.checked) shuffle(items);
   const px = pxFromMM(wantMM);
-  for(const item of items){
+  let list = filterByTag(items).slice();
+  if(shuffleCb.checked) list = shuffle(list);
+  if(!list.length){ out.innerHTML = '<div class="muted">選択されたタグに画像がありません。</div>'; return; }
+  for(const item of list){
     const d = document.createElement('div');
     d.className = 'stim';
     const img = new Image();
-    img.src = item.src;
+    img.src = 'img/' + item.src;
     img.style.width = px + 'px';
     img.style.height = 'auto';
     img.decoding = 'async';
@@ -155,14 +128,14 @@ async function render(){
       const cap = document.createElement('div');
       cap.className = 'muted';
       cap.style.marginTop = '6px';
-      cap.textContent = `${item.label}  —  幅 ${wantMM} mm（${px}px）`;
+      cap.textContent = `${item.label || item.src} — 幅 ${wantMM} mm（${px}px）`;
       d.appendChild(cap);
     }
     out.appendChild(d);
   }
 }
 
-applyBtn.onclick = ()=>{ try { render(); } catch(e){} };
+applyBtn.onclick = async ()=>{ try{ const manifest = await loadManifest(); renderTags(manifest.images || []); render(manifest.images || []); } catch(e){ alert(e.message); } };
 </script>
 </body>
 </html>
