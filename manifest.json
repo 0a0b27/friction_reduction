@@ -1,0 +1,9 @@
+{
+  "images": [
+    { "src": "std.png",   "label": "標準", "tags": ["標準","凸"] },
+    { "src": "flat.png",  "label": "フラット", "tags": ["フラット","凸"] },
+    { "src": "boost.png", "label": "強調", "tags": ["強調","凸"] },
+    { "src": "concave.png", "label": "凹", "tags": ["凹","逆"] },
+    { "src": "line.png",  "label": "線", "tags": ["線","輪郭"] }
+  ]
+}
