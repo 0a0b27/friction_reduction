@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>実寸キャリブレーション＋プレビュー（全画面対応）</title>
+<title>実寸キャリブレーション＋プレビュー（iOS対応・擬似全画面付き）</title>
 <style>
   :root { --accent: #007aff; }
   body{font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:16px; line-height:1.5}
@@ -24,6 +24,7 @@
   .tag{padding:6px 10px;border-radius:999px;border:1px solid #ddd;background:#f7f7f7;cursor:pointer}
   .tag.active{background:var(--accent); color:#fff; border-color:var(--accent)}
   .small{font-size:.9em}
+
   /* Fullscreen exit button */
   #exitFs{
     position:fixed; top:8px; right:8px; z-index:9999;
@@ -31,14 +32,24 @@
     background:rgba(0,0,0,.7); color:#fff; border:0;
   }
   :fullscreen #exitFs, :-webkit-full-screen #exitFs { display:block; }
-  /* Make preview area fill screen space nicely */
+  /* Real fullscreen preview */
   #previewWrap:fullscreen, #previewWrap:-webkit-full-screen {
     background:#fff; padding:16px; box-sizing:border-box;
   }
+
+  /* --- Pseudo fullscreen fallback (works in iOS Edge/Safari) --- */
+  .pseudo-fs #previewWrap {
+    position:fixed; inset:0; z-index:9998;
+    background:#fff; padding:16px; box-sizing:border-box;
+    overflow:auto;
+  }
+  .pseudo-fs #exitFs { display:block; }
+  .pseudo-fs body { margin:0; }
+  .hint{font-size:.9em; color:#555; margin-top:6px}
 </style>
 </head>
 <body>
-<h1>実寸キャリブレーション＋プレビュー</h1>
+<h1>実寸キャリブレーション＋プレビュー（iOS対応）</h1>
 
 <div class="card">
   <h2>① キャリブレーション</h2>
@@ -60,7 +71,7 @@
     <label><input id="labels" type="checkbox" checked> ラベル表示</label>
     <button id="apply" class="primary">読み込み/更新</button>
   </div>
-  <div class="muted small" style="margin-top:6px">画像はこのページと同じリポジトリの <code>img/manifest.json</code> から読み込みます。</div>
+  <div class="muted small" style="margin-top:6px">画像は <code>img/manifest.json</code> から読み込みます。</div>
   <div class="toolbar" id="tags" style="margin-top:8px"></div>
 </div>
 
@@ -70,8 +81,10 @@
     <span class="row">
       <button id="fsBtn">全画面</button>
       <button id="fsLandBtn">横向きで全画面</button>
+      <button id="pseudoBtn">擬似全画面</button>
     </span>
   </h2>
+  <div class="hint">iOSの一部ブラウザでは全画面APIが無効です。その場合は「擬似全画面」を使うか、Safariで「ホーム画面に追加」して開いてください。</div>
   <div id="previewWrap">
     <button id="exitFs">✕ 退出</button>
     <div id="out" class="grid"><div class="muted">「読み込み/更新」を押してください。</div></div>
@@ -93,6 +106,7 @@ const tagsEl = document.getElementById('tags');
 const previewWrap = document.getElementById('previewWrap');
 const fsBtn = document.getElementById('fsBtn');
 const fsLandBtn = document.getElementById('fsLandBtn');
+const pseudoBtn = document.getElementById('pseudoBtn');
 const exitFs = document.getElementById('exitFs');
 let selectedTag = 'all';
 
@@ -159,7 +173,11 @@ function render(items){
   }
 }
 
-// Fullscreen helpers (with vendor prefixes)
+// Fullscreen helpers
+function canRealFullscreen(){
+  return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled || 
+            Element.prototype.requestFullscreen || Element.prototype.webkitRequestFullscreen);
+}
 function requestFs(el){
   if (el.requestFullscreen) return el.requestFullscreen();
   if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
@@ -176,35 +194,40 @@ function exitFsFn(){
 }
 async function enterFullscreen(landscape=false){
   try{
+    if(!canRealFullscreen()) throw new Error('no-fs');
     await requestFs(previewWrap);
-    // Try to lock orientation (may fail on some iOS/Safari)
     if(landscape && screen.orientation && screen.orientation.lock){
       try{ await screen.orientation.lock('landscape'); }catch(e){ /* ignore */ }
     }
   }catch(e){
-    alert('全画面表示に失敗しました。ユーザー操作から再試行してください。');
+    // Fallback to pseudo fullscreen
+    document.documentElement.classList.add('pseudo-fs');
+    alert('iOSブラウザで全画面APIが使えなかったため、擬似全画面に切り替えました。必要なら端末を横向きにしてください。');
   }
 }
 async function exitFullscreen(){
   try{
     if(document.fullscreenElement || document.webkitFullscreenElement){
       await exitFsFn();
+    } else {
+      // Exit pseudo
+      document.documentElement.classList.remove('pseudo-fs');
     }
   }catch(e){ /* ignore */ }
 }
 
-fsBtn.onclick = ()=> enterFullscreen(false);
-fsLandBtn.onclick = ()=> enterFullscreen(true);
-exitFs.onclick = ()=> exitFullscreen();
+document.getElementById('fsBtn').onclick = ()=> enterFullscreen(false);
+document.getElementById('fsLandBtn').onclick = ()=> enterFullscreen(true);
+document.getElementById('pseudoBtn').onclick = ()=> document.documentElement.classList.add('pseudo-fs');
+document.getElementById('exitFs').onclick = ()=> exitFullscreen();
 
 function onFsChange(){
   const fs = document.fullscreenElement || document.webkitFullscreenElement;
-  exitFs.style.display = fs ? 'block' : 'none';
+  const pseudo = document.documentElement.classList.contains('pseudo-fs');
+  document.getElementById('exitFs').style.display = (fs || pseudo) ? 'block' : 'none';
 }
 document.addEventListener('fullscreenchange', onFsChange);
 document.addEventListener('webkitfullscreenchange', onFsChange);
-
-applyBtn.onclick = async ()=>{ try{ const manifest = await loadManifest(); renderTags(manifest.images || []); render(manifest.images || []); } catch(e){ alert(e.message); } };
 </script>
 </body>
 </html>
