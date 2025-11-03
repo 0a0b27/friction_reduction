@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>実寸キャリブレーション＋プレビュー（iOS対応・擬似全画面付き）</title>
+<title>実寸キャリブレーション＋プレビュー（iOS対応・擬似全画面リフレッシュ付き）</title>
 <style>
   :root { --accent: #007aff; }
   body{font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:16px; line-height:1.5}
@@ -25,26 +25,30 @@
   .tag.active{background:var(--accent); color:#fff; border-color:var(--accent)}
   .small{font-size:.9em}
 
-  /* Fullscreen exit button */
-  #exitFs{
-    position:fixed; top:8px; right:8px; z-index:9999;
-    display:none; padding:8px 12px; border-radius:10px;
-    background:rgba(0,0,0,.7); color:#fff; border:0;
+  /* Fullscreen exit/controls buttons */
+  #exitFs, #refreshFs{
+    position:fixed; z-index:9999; display:none;
+    padding:10px 14px; border-radius:10px; border:0;
+    background:rgba(0,0,0,.75); color:#fff;
   }
-  :fullscreen #exitFs, :-webkit-full-screen #exitFs { display:block; }
+  #exitFs{ top:8px; right:8px; }
+  #refreshFs{ bottom:8px; right:8px; }
+
+  :fullscreen #exitFs, :-webkit-full-screen #exitFs,
+  :fullscreen #refreshFs, :-webkit-full-screen #refreshFs { display:block; }
+
   /* Real fullscreen preview */
   #previewWrap:fullscreen, #previewWrap:-webkit-full-screen {
     background:#fff; padding:16px; box-sizing:border-box;
   }
 
-  /* --- Pseudo fullscreen fallback (works in iOS Edge/Safari) --- */
+  /* Pseudo fullscreen fallback */
   .pseudo-fs #previewWrap {
     position:fixed; inset:0; z-index:9998;
     background:#fff; padding:16px; box-sizing:border-box;
     overflow:auto;
   }
-  .pseudo-fs #exitFs { display:block; }
-  .pseudo-fs body { margin:0; }
+  .pseudo-fs #exitFs, .pseudo-fs #refreshFs { display:block; }
   .hint{font-size:.9em; color:#555; margin-top:6px}
 </style>
 </head>
@@ -87,6 +91,7 @@
   <div class="hint">iOSの一部ブラウザでは全画面APIが無効です。その場合は「擬似全画面」を使うか、Safariで「ホーム画面に追加」して開いてください。</div>
   <div id="previewWrap">
     <button id="exitFs">✕ 退出</button>
+    <button id="refreshFs">↻ 更新</button>
     <div id="out" class="grid"><div class="muted">「読み込み/更新」を押してください。</div></div>
   </div>
 </div>
@@ -108,6 +113,7 @@ const fsBtn = document.getElementById('fsBtn');
 const fsLandBtn = document.getElementById('fsLandBtn');
 const pseudoBtn = document.getElementById('pseudoBtn');
 const exitFs = document.getElementById('exitFs');
+const refreshFs = document.getElementById('refreshFs');
 let selectedTag = 'all';
 
 function setBar(px){ creditbar.style.width = px + 'px'; }
@@ -142,7 +148,7 @@ function filterByTag(items){
 async function loadManifest(){
   const res = await fetch('img/manifest.json?v=' + Date.now());
   if(!res.ok) throw new Error('manifest.json が読み込めませんでした');
-  return res.json(); // { images: [{src:"foo.png", label:"標準", tags:["標準","凸"]}, ...] }
+  return res.json();
 }
 
 function render(items){
@@ -200,9 +206,8 @@ async function enterFullscreen(landscape=false){
       try{ await screen.orientation.lock('landscape'); }catch(e){ /* ignore */ }
     }
   }catch(e){
-    // Fallback to pseudo fullscreen
     document.documentElement.classList.add('pseudo-fs');
-    alert('iOSブラウザで全画面APIが使えなかったため、擬似全画面に切り替えました。必要なら端末を横向きにしてください。');
+    // No alert to avoid blocking clicks; a small toast could be added if needed
   }
 }
 async function exitFullscreen(){
@@ -210,24 +215,28 @@ async function exitFullscreen(){
     if(document.fullscreenElement || document.webkitFullscreenElement){
       await exitFsFn();
     } else {
-      // Exit pseudo
       document.documentElement.classList.remove('pseudo-fs');
     }
   }catch(e){ /* ignore */ }
 }
 
+// Wire buttons
 document.getElementById('fsBtn').onclick = ()=> enterFullscreen(false);
 document.getElementById('fsLandBtn').onclick = ()=> enterFullscreen(true);
 document.getElementById('pseudoBtn').onclick = ()=> document.documentElement.classList.add('pseudo-fs');
 document.getElementById('exitFs').onclick = ()=> exitFullscreen();
+document.getElementById('refreshFs').onclick = ()=> applyBtn.click(); // in-overlay refresh
 
 function onFsChange(){
   const fs = document.fullscreenElement || document.webkitFullscreenElement;
   const pseudo = document.documentElement.classList.contains('pseudo-fs');
   document.getElementById('exitFs').style.display = (fs || pseudo) ? 'block' : 'none';
+  document.getElementById('refreshFs').style.display = (fs || pseudo) ? 'block' : 'none';
 }
 document.addEventListener('fullscreenchange', onFsChange);
 document.addEventListener('webkitfullscreenchange', onFsChange);
+
+// Initial
 </script>
 </body>
 </html>
