@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>実寸キャリブレーション＋プレビュー（全画面対応）</title>
+<title>実寸キャリブレーション＋プレビュー（デバッグ強化版）</title>
 <style>
   :root { --accent: #007aff; }
   body{font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:16px; line-height:1.5}
@@ -24,29 +24,54 @@
   .tag{padding:6px 10px;border-radius:999px;border:1px solid #ddd;background:#f7f7f7;cursor:pointer}
   .tag.active{background:var(--accent); color:#fff; border-color:var(--accent)}
   .small{font-size:.9em}
-  /* Fullscreen exit button */
-  #exitFs{
-    position:fixed; top:8px; right:8px; z-index:9999;
-    display:none; padding:8px 12px; border-radius:10px;
-    background:rgba(0,0,0,.7); color:#fff; border:0;
+
+  /* Fullscreen / pseudo-fullscreen controls */
+  #exitFs, #refreshFs{
+    position:fixed; z-index:9999; display:none;
+    padding:10px 14px; border-radius:10px; border:0;
+    background:rgba(0,0,0,.75); color:#fff;
+    pointer-events:auto;
   }
-  :fullscreen #exitFs, :-webkit-full-screen #exitFs { display:block; }
-  /* Make preview area fill screen space nicely */
+  #exitFs{ top:8px; right:8px; }
+  #refreshFs{ bottom:8px; right:8px; }
+  :fullscreen #exitFs, :-webkit-full-screen #exitFs,
+  :fullscreen #refreshFs, :-webkit-full-screen #refreshFs { display:block; }
+
   #previewWrap:fullscreen, #previewWrap:-webkit-full-screen {
     background:#fff; padding:16px; box-sizing:border-box;
   }
+
+  .pseudo-fs #previewWrap {
+    position:fixed; inset:0; z-index:9998;
+    background:#fff; padding:16px; box-sizing:border-box;
+    overflow:auto;
+  }
+  .pseudo-fs #exitFs, .pseudo-fs #refreshFs { display:block; }
+
+  /* Toast */
+  #toast{
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+    background:#222; color:#fff; padding:10px 14px; border-radius:10px;
+    z-index:10000; display:none; max-width:90vw;
+  }
+
+  /* Debug panel */
+  #debug{font-size:.9em; background:#f9f9f9; border:1px solid #eee; padding:8px; border-radius:10px}
+  #debug code{background:#f1f1f1; padding:2px 4px; border-radius:6px}
 </style>
 </head>
 <body>
-<h1>実寸キャリブレーション＋プレビュー</h1>
+<h1>実寸キャリブレーション＋プレビュー（デバッグ版）</h1>
+
+<div id="toast"></div>
 
 <div class="card">
   <h2>① キャリブレーション</h2>
   <div>灰色バーの幅を、手元の<span class="pill">クレカ横幅 85.6 mm</span>に指で合わせてください。</div>
   <div class="row" style="margin-top:8px">
     <input id="range" type="range" min="50" max="1000" value="320" style="flex:1">
-    <button id="save" class="primary">この幅で保存</button>
-    <button id="reset">リセット</button>
+    <button id="save" class="primary" type="button">この幅で保存</button>
+    <button id="reset" type="button">リセット</button>
   </div>
   <div id="creditbar" style="width:320px; margin-top:10px"></div>
   <div class="muted small" id="status" style="margin-top:6px">未保存</div>
@@ -58,9 +83,9 @@
     <div>幅(mm)：<input id="mm" type="number" step="0.1" value="5"></div>
     <label><input id="shuffle" type="checkbox"> ランダム順</label>
     <label><input id="labels" type="checkbox" checked> ラベル表示</label>
-    <button id="apply" class="primary">読み込み/更新</button>
+    <button id="apply" class="primary" type="button">読み込み/更新</button>
   </div>
-  <div class="muted small" style="margin-top:6px">画像はこのページと同じリポジトリの <code>img/manifest.json</code> から読み込みます。</div>
+  <div class="muted small" style="margin-top:6px">画像は <code>img/manifest.json</code> から読み込みます。</div>
   <div class="toolbar" id="tags" style="margin-top:8px"></div>
 </div>
 
@@ -68,13 +93,27 @@
   <h2>
     ③ プレビュー
     <span class="row">
-      <button id="fsBtn">全画面</button>
-      <button id="fsLandBtn">横向きで全画面</button>
+      <button id="fsBtn" type="button">全画面</button>
+      <button id="fsLandBtn" type="button">横向きで全画面</button>
+      <button id="pseudoBtn" type="button">擬似全画面</button>
     </span>
   </h2>
   <div id="previewWrap">
-    <button id="exitFs">✕ 退出</button>
+    <button id="exitFs" type="button">✕ 退出</button>
+    <button id="refreshFs" type="button">↻ 更新</button>
     <div id="out" class="grid"><div class="muted">「読み込み/更新」を押してください。</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>デバッグ</h2>
+  <div id="debug">
+    現在のURL: <code id="loc"></code><br>
+    期待するmanifest: <code id="man"></code>
+    <a id="manLink" target="_blank" rel="noopener">開く</a>
+    <div style="margin-top:6px">
+      状態: <span id="state">未初期化</span>
+    </div>
   </div>
 </div>
 
@@ -93,18 +132,49 @@ const tagsEl = document.getElementById('tags');
 const previewWrap = document.getElementById('previewWrap');
 const fsBtn = document.getElementById('fsBtn');
 const fsLandBtn = document.getElementById('fsLandBtn');
+const pseudoBtn = document.getElementById('pseudoBtn');
 const exitFs = document.getElementById('exitFs');
+const refreshFs = document.getElementById('refreshFs');
+const toast = document.getElementById('toast');
+const state = document.getElementById('state');
+const locEl = document.getElementById('loc');
+const manEl = document.getElementById('man');
+const manLink = document.getElementById('manLink');
 let selectedTag = 'all';
+let lastItems = null;
+
+function showToast(msg){
+  toast.textContent = msg;
+  toast.style.display = 'block';
+  setTimeout(()=> toast.style.display='none', 3000);
+}
 
 function setBar(px){ creditbar.style.width = px + 'px'; }
 range.oninput = e => setBar(e.target.value);
 function getK(){ return +localStorage.getItem('mm_per_csspx') || 0; }
 function setK(k){ localStorage.setItem('mm_per_csspx', k); statusEl.textContent = k>0 ? `保存済み: 1px = ${k.toFixed(4)} mm` : '未保存'; }
-(function init(){ const k = getK(); if(k>0){ statusEl.textContent = `保存済み: 1px = ${k.toFixed(4)} mm`; } setBar(range.value);} )();
-saveBtn.onclick = ()=>{ const px = parseFloat(getComputedStyle(creditbar).width); const mmPerPx = 85.6 / px; setK(mmPerPx); alert('保存しました。以降はズームを変えないでください。'); };
-resetBtn.onclick = ()=>{ localStorage.removeItem('mm_per_csspx'); setK(0); };
+(function init(){
+  const k = getK(); if(k>0){ statusEl.textContent = `保存済み: 1px = ${k.toFixed(4)} mm`; } setBar(range.value);
+  const manifestUrl = new URL('img/manifest.json', location.href).href;
+  locEl.textContent = location.href;
+  manEl.textContent = manifestUrl;
+  manLink.href = manifestUrl + '?v=' + Date.now();
+})();
+saveBtn.onclick = ()=>{
+  try{
+    const px = parseFloat(getComputedStyle(creditbar).width);
+    const mmPerPx = 85.6 / px;
+    setK(mmPerPx);
+    showToast('保存しました');
+  }catch(e){ showToast('保存に失敗: ' + e.message); }
+};
+resetBtn.onclick = ()=>{ localStorage.removeItem('mm_per_csspx'); setK(0); showToast('リセットしました'); };
 
-function pxFromMM(mm){ const k = getK(); if(!(k>0)) { alert('先に①のキャリブレーションを保存してください。'); throw new Error('no calib'); } return Math.max(1, Math.round(mm / k)); }
+function pxFromMM(mm){
+  const k = getK();
+  if(!(k>0)) { showToast('先に①キャリブレーションを保存してください'); throw new Error('no calib'); }
+  return Math.max(1, Math.round(mm / k));
+}
 function shuffle(arr){ for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
 
 function renderTags(items){
@@ -115,6 +185,7 @@ function renderTags(items){
     const b = document.createElement('button');
     b.className = 'tag' + (t===selectedTag?' active':'');
     b.textContent = t;
+    b.type = 'button';
     b.onclick = ()=>{ selectedTag = t; render(items); renderTags(items); };
     tagsEl.appendChild(b);
   }
@@ -126,40 +197,77 @@ function filterByTag(items){
 }
 
 async function loadManifest(){
-  const res = await fetch('img/manifest.json?v=' + Date.now());
-  if(!res.ok) throw new Error('manifest.json が読み込めませんでした');
-  return res.json(); // { images: [{src:"foo.png", label:"標準", tags:["標準","凸"]}, ...] }
+  const url = 'img/manifest.json?v=' + Date.now();
+  state.textContent = 'manifest取得中…';
+  const res = await fetch(url, {cache:'no-store'});
+  if(!res.ok) throw new Error(`HTTP ${res.status} at ${url}`);
+  const data = await res.json();
+  state.textContent = 'manifest読込OK';
+  return data;
 }
 
 function render(items){
-  out.innerHTML = '';
-  const wantMM = +mmInput.value;
-  const px = pxFromMM(wantMM);
-  let list = filterByTag(items).slice();
-  if(shuffleCb.checked) list = shuffle(list);
-  if(!list.length){ out.innerHTML = '<div class="muted">選択されたタグに画像がありません。</div>'; return; }
-  for(const item of list){
-    const d = document.createElement('div');
-    d.className = 'stim';
-    const img = new Image();
-    img.src = 'img/' + item.src;
-    img.style.width = px + 'px';
-    img.style.height = 'auto';
-    img.decoding = 'async';
-    img.loading = 'eager';
-    d.appendChild(img);
-    if(labelsCb.checked){
-      const cap = document.createElement('div');
-      cap.className = 'muted';
-      cap.style.marginTop = '6px';
-      cap.textContent = `${item.label || item.src} — 幅 ${wantMM} mm（${px}px）`;
-      d.appendChild(cap);
+  try{
+    out.innerHTML = '';
+    const wantMM = +mmInput.value;
+    const px = pxFromMM(wantMM);
+    let list = filterByTag(items).slice();
+    if(shuffleCb.checked) list = shuffle(list);
+    if(!list.length){ out.innerHTML = '<div class="muted">選択されたタグに画像がありません。</div>'; return; }
+    for(const item of list){
+      const d = document.createElement('div');
+      d.className = 'stim';
+      const img = new Image();
+      img.src = 'img/' + item.src;
+      img.style.width = px + 'px';
+      img.style.height = 'auto';
+      img.decoding = 'async';
+      img.loading = 'eager';
+      d.appendChild(img);
+      if(labelsCb.checked){
+        const cap = document.createElement('div');
+        cap.className = 'muted';
+        cap.style.marginTop = '6px';
+        cap.textContent = `${item.label || item.src} — 幅 ${wantMM} mm（${px}px）`;
+        d.appendChild(cap);
+      }
+      out.appendChild(d);
     }
-    out.appendChild(d);
+    state.textContent = '描画完了';
+    showToast('更新しました');
+  }catch(e){
+    state.textContent = '描画エラー: ' + e.message;
+    showToast('描画エラー: ' + e.message);
   }
 }
 
-// Fullscreen helpers (with vendor prefixes)
+// Button wiring
+applyBtn.addEventListener('click', async ()=>{
+  try{
+    const data = await loadManifest();
+    lastItems = data.images || [];
+    renderTags(lastItems);
+    render(lastItems);
+  }catch(e){
+    // Fallback list if manifest missing
+    state.textContent = 'manifestエラー: ' + e.message;
+    showToast('manifestが読めませんでした。例示データで表示します。');
+    lastItems = [
+      {src:'std.png', label:'標準', tags:['標準','凸']},
+      {src:'flat.png', label:'フラット', tags:['フラット','凸']},
+    ];
+    renderTags(lastItems);
+    render(lastItems);
+  }
+}, {passive:false});
+
+refreshFs.onclick = ()=> applyBtn.click();
+
+// Fullscreen helpers
+function canRealFullscreen(){
+  return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled || 
+            Element.prototype.requestFullscreen || Element.prototype.webkitRequestFullscreen);
+}
 function requestFs(el){
   if (el.requestFullscreen) return el.requestFullscreen();
   if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
@@ -176,35 +284,38 @@ function exitFsFn(){
 }
 async function enterFullscreen(landscape=false){
   try{
+    if(!canRealFullscreen()) throw new Error('no-fs');
     await requestFs(previewWrap);
-    // Try to lock orientation (may fail on some iOS/Safari)
     if(landscape && screen.orientation && screen.orientation.lock){
       try{ await screen.orientation.lock('landscape'); }catch(e){ /* ignore */ }
     }
   }catch(e){
-    alert('全画面表示に失敗しました。ユーザー操作から再試行してください。');
+    document.documentElement.classList.add('pseudo-fs');
   }
 }
 async function exitFullscreen(){
   try{
     if(document.fullscreenElement || document.webkitFullscreenElement){
       await exitFsFn();
+    } else {
+      document.documentElement.classList.remove('pseudo-fs');
     }
   }catch(e){ /* ignore */ }
 }
 
-fsBtn.onclick = ()=> enterFullscreen(false);
-fsLandBtn.onclick = ()=> enterFullscreen(true);
-exitFs.onclick = ()=> exitFullscreen();
+document.getElementById('fsBtn').onclick = ()=> enterFullscreen(false);
+document.getElementById('fsLandBtn').onclick = ()=> enterFullscreen(true);
+document.getElementById('pseudoBtn').onclick = ()=> document.documentElement.classList.add('pseudo-fs');
+document.getElementById('exitFs').onclick = ()=> exitFullscreen();
 
 function onFsChange(){
   const fs = document.fullscreenElement || document.webkitFullscreenElement;
-  exitFs.style.display = fs ? 'block' : 'none';
+  const pseudo = document.documentElement.classList.contains('pseudo-fs');
+  exitFs.style.display = (fs || pseudo) ? 'block' : 'none';
+  refreshFs.style.display = (fs || pseudo) ? 'block' : 'none';
 }
 document.addEventListener('fullscreenchange', onFsChange);
 document.addEventListener('webkitfullscreenchange', onFsChange);
-
-applyBtn.onclick = async ()=>{ try{ const manifest = await loadManifest(); renderTags(manifest.images || []); render(manifest.images || []); } catch(e){ alert(e.message); } };
 </script>
 </body>
 </html>
