@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>実寸キャリブレーション＋プレビュー（要望反映版）</title>
+<title>視覚情報提示</title>
 <style>
   :root { --accent: #007aff; }
   html, body{height:100%}
@@ -71,7 +71,7 @@
 </style>
 </head>
 <body>
-<h1>実寸キャリブレーション＋プレビュー（要望反映）</h1>
+<h1>視覚情報提示</h1>
 
 <div class="card">
   <h2>① キャリブレーション</h2>
@@ -108,7 +108,7 @@
     </span>
   </h2>
   <div class="hint">全画面中は背景を完全な白に固定します。横向き固定はiOSでは効かない場合があります。</div>
-  <div id="previewWrap">
+  <div id="previewWrap" class="center">
     <button id="exitFs" type="button">✕ 退出</button>
     <button id="refreshFs" type="button">↻ 更新</button>
     <div id="out" class="grid"><div class="muted">「読み込み/更新」を押してください。</div></div>
@@ -254,6 +254,13 @@ fsLandBtn.onclick = ()=> enterFullscreen(true);
 pseudoBtn.onclick = ()=> document.documentElement.classList.add('pseudo-fs');
 exitFs.onclick = ()=> exitFullscreen();
 refreshFs.onclick = ()=> applyBtn.click();
+
+
+// Default: center mode ON
+document.addEventListener('DOMContentLoaded', ()=>{
+  previewWrap.classList.add('center');
+  centerBtn.classList.add('toggled');
+});
 
 // Center toggle
 centerBtn.onclick = ()=>{
