@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>実寸キャリブレーション＋プレビュー（中央配置トグル付き）</title>
+<title>実寸キャリブレーション＋プレビュー（要望反映版）</title>
 <style>
   :root { --accent: #007aff; }
-  body{font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:16px; line-height:1.5}
+  html, body{height:100%}
+  body{font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:16px; line-height:1.5; background:#fff}
   h1{font-size:1.2rem;margin:0 0 8px}
   h2{font-size:1.05rem;margin:16px 0 8px; display:flex; align-items:center; justify-content:space-between; gap:8px}
-  .card{border:1px solid #ddd; border-radius:12px; padding:12px; margin:12px 0; box-shadow: 0 1px 2px rgba(0,0,0,.04)}
+  .card{border:1px solid #ddd; border-radius:12px; padding:12px; margin:12px 0; box-shadow: 0 1px 2px rgba(0,0,0,.04); background:#fff}
   .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
   .pill{background:#f5f5f5;border:1px solid #e1e1e1;padding:4px 8px;border-radius:999px}
   #creditbar{height:20px;background:#e9e9e9;border:1px solid #bbb;border-radius:10px}
@@ -37,15 +38,20 @@
   :fullscreen #exitFs, :-webkit-full-screen #exitFs,
   :fullscreen #refreshFs, :-webkit-full-screen #refreshFs { display:block; }
 
+  /* Real fullscreen preview: make background pure white */
   #previewWrap:fullscreen, #previewWrap:-webkit-full-screen {
-    background:#fff; padding:16px; box-sizing:border-box;
+    background:#fff !important; padding:16px; box-sizing:border-box;
   }
 
+  /* Pseudo fullscreen fallback */
+  .pseudo-fs { background:#fff !important; }
+  .pseudo-fs body{ background:#fff !important; }
   .pseudo-fs #previewWrap {
     position:fixed; inset:0; z-index:9998;
-    background:#fff; padding:16px; box-sizing:border-box;
+    background:#fff !important; padding:16px; box-sizing:border-box;
     overflow:auto;
   }
+  .pseudo-fs #exitFs, .pseudo-fs #refreshFs { display:block; }
 
   /* ---- Center mode ---- */
   #previewWrap.center {
@@ -61,7 +67,7 @@
 </style>
 </head>
 <body>
-<h1>実寸キャリブレーション＋プレビュー（中央配置対応）</h1>
+<h1>実寸キャリブレーション＋プレビュー（要望反映）</h1>
 
 <div class="card">
   <h2>① キャリブレーション</h2>
@@ -79,8 +85,8 @@
   <h2>② 表示設定</h2>
   <div class="toolbar">
     <div>幅(mm)：<input id="mm" type="number" step="0.1" value="5"></div>
-    <label><input id="shuffle" type="checkbox"> ランダム順</label>
-    <label><input id="labels" type="checkbox" checked> ラベル表示</label>
+    <!-- shuffle removed -->
+    <label><input id="labels" type="checkbox"> ラベル表示</label>
     <button id="apply" class="primary" type="button">読み込み/更新</button>
   </div>
   <div class="muted small" style="margin-top:6px">画像は <code>img/manifest.json</code> から読み込みます。</div>
@@ -97,7 +103,7 @@
       <button id="centerBtn" type="button">中央配置</button>
     </span>
   </h2>
-  <div class="hint">擬似全画面中も右上「✕」で退出できます。横向き固定はiOSでは効かない場合があります。</div>
+  <div class="hint">全画面中は背景を完全な白に固定します。横向き固定はiOSでは効かない場合があります。</div>
   <div id="previewWrap">
     <button id="exitFs" type="button">✕ 退出</button>
     <button id="refreshFs" type="button">↻ 更新</button>
@@ -114,7 +120,6 @@ const resetBtn = document.getElementById('reset');
 const applyBtn = document.getElementById('apply');
 const out = document.getElementById('out');
 const mmInput = document.getElementById('mm');
-const shuffleCb = document.getElementById('shuffle');
 const labelsCb = document.getElementById('labels');
 const tagsEl = document.getElementById('tags');
 const previewWrap = document.getElementById('previewWrap');
@@ -135,7 +140,6 @@ saveBtn.onclick = ()=>{ const px = parseFloat(getComputedStyle(creditbar).width)
 resetBtn.onclick = ()=>{ localStorage.removeItem('mm_per_csspx'); setK(0); };
 
 function pxFromMM(mm){ const k = getK(); if(!(k>0)) { alert('先に①のキャリブレーションを保存してください。'); throw new Error('no calib'); } return Math.max(1, Math.round(mm / k)); }
-function shuffle(arr){ for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
 
 function renderTags(items){
   const tags = Array.from(new Set(items.flatMap(x => x.tags || [])));
@@ -167,7 +171,6 @@ function render(items){
   const wantMM = +mmInput.value;
   const px = pxFromMM(wantMM);
   let list = filterByTag(items).slice();
-  if(shuffleCb.checked) list = shuffle(list);
   if(!list.length){ out.innerHTML = '<div class="muted">選択されたタグに画像がありません。</div>'; return; }
   for(const item of list){
     const d = document.createElement('div');
@@ -189,6 +192,18 @@ function render(items){
     out.appendChild(d);
   }
 }
+
+applyBtn.addEventListener('click', async ()=>{
+  try{
+    const data = await loadManifest();
+    const items = data.images || [];
+    renderTags(items);
+    render(items);
+  }catch(e){
+    // If manifest not found, at least clear & show message
+    out.innerHTML = '<div class="muted">manifest.json が見つかりません。</div>';
+  }
+});
 
 // Fullscreen helpers
 function canRealFullscreen(){
