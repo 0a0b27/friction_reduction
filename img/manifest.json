@@ -1,9 +1,10 @@
 {
   "images": [
-    { "src": "std.png",   "label": "標準", "tags": ["標準"] },
+    { "src": "std.png",   "label": "標準", "tags": ["標準","視覚情報あり"] },
     { "src": "flat.png",  "label": "フラット", "tags": ["フラット"] },
     { "src": "boost.png", "label": "強調", "tags": ["強調"] },
     { "src": "concave.png", "label": "凹", "tags": ["凹"] },
     { "src": "line.png",  "label": "線", "tags": ["線"] }
+    { "src": "none.png",  "label": "無", "tags": ["視覚情報なし"] }
   ]
 }
