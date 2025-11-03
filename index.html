@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>実寸キャリブレーション＋プレビュー（スマート全画面版）</title>
+<title>実寸キャリブレーション＋プレビュー（視覚情報あり/なし切替付き）</title>
 <style>
   :root { --accent: #007aff; }
   html, body{height:100%}
@@ -26,8 +26,8 @@
   .tag.active{background:var(--accent); color:#fff; border-color:var(--accent)}
   .small{font-size:.9em}
 
-  /* Controls shown in full/pseudo */
-  #exitFs, #refreshFs{
+  /* fullscreen controls */
+  #exitFs, #refreshFs, #visToggle{
     position:fixed; z-index:9999; display:none;
     padding:10px 14px; border-radius:10px; border:0;
     background:rgba(0,0,0,.75); color:#fff;
@@ -35,27 +35,28 @@
   }
   #exitFs{ top:8px; right:8px; }
   #refreshFs{ bottom:8px; right:8px; }
+  #visToggle{ bottom:58px; right:8px; }
   :fullscreen #exitFs, :-webkit-full-screen #exitFs,
-  :fullscreen #refreshFs, :-webkit-full-screen #refreshFs { display:block; }
+  :fullscreen #refreshFs, :-webkit-full-screen #refreshFs,
+  :fullscreen #visToggle, :-webkit-full-screen #visToggle { display:block; }
 
-  /* Real fullscreen preview: keep pure white */
+  /* fullscreen background */
   #previewWrap:fullscreen, #previewWrap:-webkit-full-screen {
     background:#fff !important; padding:16px; box-sizing:border-box;
   }
 
-  /* Pseudo fullscreen */
+  /* pseudo fullscreen */
   .pseudo-fs, .pseudo-fs body{ background:#fff !important; }
   .pseudo-fs #previewWrap {
     position:fixed; inset:0; z-index:9998;
     background:#fff !important; padding:16px; box-sizing:border-box;
     overflow:auto;
   }
-  .pseudo-fs #exitFs, .pseudo-fs #refreshFs { display:block; }
+  .pseudo-fs #exitFs, .pseudo-fs #refreshFs, .pseudo-fs #visToggle { display:block; }
 
-  /* Center mode */
+  /* center mode */
   #previewWrap.center { display:flex; align-items:center; justify-content:center; }
   #previewWrap.center #out { margin:0 auto; }
-  /* Center mode: no dashed border */
   #previewWrap.center .stim { border: none; }
 
   .hint{font-size:.9em; color:#555; margin-top:6px}
@@ -64,7 +65,7 @@
 </style>
 </head>
 <body>
-<h1>実寸キャリブレーション＋プレビュー（スマート全画面）</h1>
+<h1>実寸キャリブレーション＋プレビュー（視覚情報スワイプ対応）</h1>
 
 <div class="card">
   <h2>① キャリブレーション</h2>
@@ -99,16 +100,16 @@
       <button id="centerBtn" type="button" class="toggled">中央配置</button>
     </span>
   </h2>
-  <div class="hint">Macは実全画面、iPhoneは擬似全画面を優先します。他は実全画面→ダメなら擬似に自動フォールバック。Esc/「✕」/ダブルタップで退出。</div>
+  <div class="hint">全画面中に左右スワイプすると「視覚情報あり」↔「視覚情報なし」を切り替えます（両方のタグがある場合）。ボタンでも切替できます。</div>
   <div id="previewWrap" class="center">
     <button id="exitFs" type="button">✕ 退出</button>
     <button id="refreshFs" type="button">↻ 更新</button>
+    <button id="visToggle" type="button">視覚情報なしへ</button>
     <div id="out" class="grid"><div class="muted">「読み込み/更新」を押してください。</div></div>
   </div>
 </div>
 
 <script>
-// --- Basic controls ---
 const range = document.getElementById('range');
 const creditbar = document.getElementById('creditbar');
 const statusEl = document.getElementById('status');
@@ -126,7 +127,10 @@ const pseudoBtn = document.getElementById('pseudoBtn');
 const centerBtn = document.getElementById('centerBtn');
 const exitFs = document.getElementById('exitFs');
 const refreshFs = document.getElementById('refreshFs');
+const visToggle = document.getElementById('visToggle');
+
 let selectedTag = 'all';
+let lastItems = null;
 
 function setBar(px){ creditbar.style.width = px + 'px'; }
 range.oninput = e => setBar(e.target.value);
@@ -144,10 +148,10 @@ function renderTags(items){
   tagsEl.innerHTML = '';
   for(const t of tags){
     const b = document.createElement('button');
-    b.className = 'tag' + (t===selectedTag?' active':'');
+    b.className = 'tag' + (t===selectedTag?' active':'' );
     b.textContent = t;
     b.type = 'button';
-    b.onclick = ()=>{ selectedTag = t; render(items); renderTags(items); };
+    b.onclick = ()=>{ selectedTag = t; render(items); renderTags(items); updateVisToggleLabel(); };
     tagsEl.appendChild(b);
   }
 }
@@ -193,18 +197,19 @@ function render(items){
 applyBtn.addEventListener('click', async ()=>{
   try{
     const data = await loadManifest();
-    const items = data.images || [];
-    renderTags(items);
-    render(items);
+    lastItems = data.images || [];
+    renderTags(lastItems);
+    render(lastItems);
+    updateVisToggleLabel();
   }catch(e){
     out.innerHTML = '<div class="muted">manifest.json が見つかりません。</div>';
   }
 });
 
-// --- Smart fullscreen logic ---
+/* --- smart fullscreen logic (same as before) --- */
 const ua = navigator.userAgent;
 const isIOSPhone = /iPhone/.test(ua);
-const isIOSPad = /iPad/.test(ua) || (ua.includes('Mac') && 'ontouchend' in document); // iPadOS may say Mac
+const isIOSPad = /iPad/.test(ua) || (ua.includes('Mac') && 'ontouchend' in document);
 const isIOS = isIOSPhone || isIOSPad;
 const isMacDesktop = /Macintosh/.test(ua) && !('ontouchend' in document);
 
@@ -227,20 +232,18 @@ async function enterFullscreenInternal(landscape=false){
     if(!canRealFullscreen()) throw new Error('no-fs');
     await requestFs(previewWrap);
     if(landscape && screen.orientation && screen.orientation.lock){
-      try{ await screen.orientation.lock('landscape'); }catch(e){ /* ignore */ }
+      try{ await screen.orientation.lock('landscape'); }catch(e){}
     }
   }catch(e){
     document.documentElement.classList.add('pseudo-fs');
   }
 }
 function enterFullscreenSmart(landscape=false){
-  if(isMacDesktop){ // Macは実全画面
+  if(isMacDesktop){
     enterFullscreenInternal(landscape);
-  } else if (isIOSPhone){ // iPhoneは擬似へ
+  } else if (isIOSPhone){
     document.documentElement.classList.add('pseudo-fs');
-  } else if (isIOSPad){ // iPadは実→失敗なら擬似
-    enterFullscreenInternal(landscape);
-  } else { // その他は実→失敗なら擬似
+  } else {
     enterFullscreenInternal(landscape);
   }
 }
@@ -250,41 +253,88 @@ async function exitFullscreenSmart(){
   }
   document.documentElement.classList.remove('pseudo-fs');
 }
-
 fsBtn.onclick = ()=> enterFullscreenSmart(false);
 fsLandBtn.onclick = ()=> enterFullscreenSmart(true);
 pseudoBtn.onclick = ()=> document.documentElement.classList.add('pseudo-fs');
 exitFs.onclick = ()=> exitFullscreenSmart();
 refreshFs.onclick = ()=> applyBtn.click();
 
-// Center toggle
+/* center toggle */
 centerBtn.onclick = ()=>{
   previewWrap.classList.toggle('center');
   centerBtn.classList.toggle('toggled');
 };
 
+/* show controls when fullscreen/pseudo */
 function onFsChange(){
   const fs = document.fullscreenElement || document.webkitFullscreenElement;
   const pseudo = document.documentElement.classList.contains('pseudo-fs');
-  exitFs.style.display = (fs || pseudo) ? 'block' : 'none';
-  refreshFs.style.display = (fs || pseudo) ? 'block' : 'none';
+  const show = (fs || pseudo);
+  exitFs.style.display = show ? 'block' : 'none';
+  refreshFs.style.display = show ? 'block' : 'none';
+  visToggle.style.display = show ? 'block' : 'none';
 }
 document.addEventListener('fullscreenchange', onFsChange);
 document.addEventListener('webkitfullscreenchange', onFsChange);
 
-// Emergency exits: ESC / 'q' / double-tap
+/* emergency exits */
 document.addEventListener('keydown', (e)=>{
   if(e.key === 'Escape' || e.key.toLowerCase() === 'q'){
     exitFullscreenSmart();
   }
 });
-let lastTap = 0;
-document.addEventListener('touchend', ()=>{
-  const now = Date.now();
-  if(now - lastTap < 300){
-    exitFullscreenSmart();
+
+/* --- 視覚情報あり/なしトグル --- */
+function updateVisToggleLabel(){
+  if(selectedTag === '視覚情報あり'){
+    visToggle.textContent = '視覚情報なしへ';
+  } else if (selectedTag === '視覚情報なし'){
+    visToggle.textContent = '視覚情報ありへ';
+  } else {
+    visToggle.textContent = '視覚情報あり/なし';
   }
-  lastTap = now;
+}
+visToggle.onclick = ()=>{
+  if(!lastItems) return;
+  if(selectedTag === '視覚情報あり'){
+    selectedTag = '視覚情報なし';
+  } else if (selectedTag === '視覚情報なし'){
+    selectedTag = '視覚情報あり';
+  } else {
+    selectedTag = '視覚情報あり'; // その他から押したら「あり」に寄せる
+  }
+  renderTags(lastItems);
+  render(lastItems);
+  updateVisToggleLabel();
+};
+
+/* スワイプで切替（左右） */
+let touchStartX = null;
+previewWrap.addEventListener('touchstart', (e)=>{
+  if(e.touches.length === 1){
+    touchStartX = e.touches[0].clientX;
+  }
+}, {passive:true});
+previewWrap.addEventListener('touchend', (e)=>{
+  if(touchStartX === null) return;
+  const endX = (e.changedTouches[0] || e.touches[0]).clientX;
+  const dx = endX - touchStartX;
+  const abs = Math.abs(dx);
+  touchStartX = null;
+  // スワイプ閾値
+  if(abs < 40) return;
+  if(!lastItems) return;
+  if(selectedTag === '視覚情報あり'){
+    selectedTag = '視覚情報なし';
+  } else if (selectedTag === '視覚情報なし'){
+    selectedTag = '視覚情報あり';
+  } else {
+    // 全画面中に他タグだったら無視してもいいが、今回は「あり」に寄せる
+    selectedTag = '視覚情報あり';
+  }
+  renderTags(lastItems);
+  render(lastItems);
+  updateVisToggleLabel();
 }, {passive:true});
 </script>
 </body>
