@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>視覚情報提示</title>
+<title>実寸キャリブレーション＋プレビュー（スマート全画面版）</title>
 <style>
   :root { --accent: #007aff; }
   html, body{height:100%}
@@ -26,7 +26,7 @@
   .tag.active{background:var(--accent); color:#fff; border-color:var(--accent)}
   .small{font-size:.9em}
 
-  /* Fullscreen / pseudo-fullscreen controls */
+  /* Controls shown in full/pseudo */
   #exitFs, #refreshFs{
     position:fixed; z-index:9999; display:none;
     padding:10px 14px; border-radius:10px; border:0;
@@ -38,14 +38,13 @@
   :fullscreen #exitFs, :-webkit-full-screen #exitFs,
   :fullscreen #refreshFs, :-webkit-full-screen #refreshFs { display:block; }
 
-  /* Real fullscreen preview: make background pure white */
+  /* Real fullscreen preview: keep pure white */
   #previewWrap:fullscreen, #previewWrap:-webkit-full-screen {
     background:#fff !important; padding:16px; box-sizing:border-box;
   }
 
-  /* Pseudo fullscreen fallback */
-  .pseudo-fs { background:#fff !important; }
-  .pseudo-fs body{ background:#fff !important; }
+  /* Pseudo fullscreen */
+  .pseudo-fs, .pseudo-fs body{ background:#fff !important; }
   .pseudo-fs #previewWrap {
     position:fixed; inset:0; z-index:9998;
     background:#fff !important; padding:16px; box-sizing:border-box;
@@ -53,25 +52,19 @@
   }
   .pseudo-fs #exitFs, .pseudo-fs #refreshFs { display:block; }
 
-  /* ---- Center mode ---- */
-  #previewWrap.center {
-    display:flex; align-items:center; justify-content:center;
-  }
-  #previewWrap.center #out {
-    margin:0 auto;
-  }
+  /* Center mode */
+  #previewWrap.center { display:flex; align-items:center; justify-content:center; }
+  #previewWrap.center #out { margin:0 auto; }
+  /* Center mode: no dashed border */
+  #previewWrap.center .stim { border: none; }
 
   .hint{font-size:.9em; color:#555; margin-top:6px}
   .seg{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
   .seg button.toggled{background:var(--accent); color:#fff; border-color:var(--accent)}
-
-  /* Center mode: hide dashed border around stimuli */
-  #previewWrap.center .stim { border: none; }
-
 </style>
 </head>
 <body>
-<h1>視覚情報提示</h1>
+<h1>実寸キャリブレーション＋プレビュー（スマート全画面）</h1>
 
 <div class="card">
   <h2>① キャリブレーション</h2>
@@ -89,7 +82,6 @@
   <h2>② 表示設定</h2>
   <div class="toolbar">
     <div>幅(mm)：<input id="mm" type="number" step="0.1" value="5"></div>
-    <!-- shuffle removed -->
     <label><input id="labels" type="checkbox"> ラベル表示</label>
     <button id="apply" class="primary" type="button">読み込み/更新</button>
   </div>
@@ -104,10 +96,10 @@
       <button id="fsBtn" type="button">全画面</button>
       <button id="fsLandBtn" type="button">横向きで全画面</button>
       <button id="pseudoBtn" type="button">擬似全画面</button>
-      <button id="centerBtn" type="button">中央配置</button>
+      <button id="centerBtn" type="button" class="toggled">中央配置</button>
     </span>
   </h2>
-  <div class="hint">全画面中は背景を完全な白に固定します。横向き固定はiOSでは効かない場合があります。</div>
+  <div class="hint">Macは実全画面、iPhoneは擬似全画面を優先します。他は実全画面→ダメなら擬似に自動フォールバック。Esc/「✕」/ダブルタップで退出。</div>
   <div id="previewWrap" class="center">
     <button id="exitFs" type="button">✕ 退出</button>
     <button id="refreshFs" type="button">↻ 更新</button>
@@ -116,6 +108,7 @@
 </div>
 
 <script>
+// --- Basic controls ---
 const range = document.getElementById('range');
 const creditbar = document.getElementById('creditbar');
 const statusEl = document.getElementById('status');
@@ -204,31 +197,32 @@ applyBtn.addEventListener('click', async ()=>{
     renderTags(items);
     render(items);
   }catch(e){
-    // If manifest not found, at least clear & show message
     out.innerHTML = '<div class="muted">manifest.json が見つかりません。</div>';
   }
 });
 
-// Fullscreen helpers
+// --- Smart fullscreen logic ---
+const ua = navigator.userAgent;
+const isIOSPhone = /iPhone/.test(ua);
+const isIOSPad = /iPad/.test(ua) || (ua.includes('Mac') && 'ontouchend' in document); // iPadOS may say Mac
+const isIOS = isIOSPhone || isIOSPad;
+const isMacDesktop = /Macintosh/.test(ua) && !('ontouchend' in document);
+
 function canRealFullscreen(){
-  return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled || 
+  return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled ||
             Element.prototype.requestFullscreen || Element.prototype.webkitRequestFullscreen);
 }
 function requestFs(el){
   if (el.requestFullscreen) return el.requestFullscreen();
   if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
-  if (el.msRequestFullscreen) return el.msRequestFullscreen();
-  if (el.mozRequestFullScreen) return el.mozRequestFullScreen();
   return Promise.reject();
 }
 function exitFsFn(){
   if (document.exitFullscreen) return document.exitFullscreen();
   if (document.webkitExitFullscreen) return document.webkitExitFullscreen();
-  if (document.msExitFullscreen) return document.msExitFullscreen();
-  if (document.mozCancelFullScreen) return document.mozCancelFullScreen();
   return Promise.resolve();
 }
-async function enterFullscreen(landscape=false){
+async function enterFullscreenInternal(landscape=false){
   try{
     if(!canRealFullscreen()) throw new Error('no-fs');
     await requestFs(previewWrap);
@@ -239,28 +233,29 @@ async function enterFullscreen(landscape=false){
     document.documentElement.classList.add('pseudo-fs');
   }
 }
-async function exitFullscreen(){
-  try{
-    if(document.fullscreenElement || document.webkitFullscreenElement){
-      await exitFsFn();
-    } else {
-      document.documentElement.classList.remove('pseudo-fs');
-    }
-  }catch(e){ /* ignore */ }
+function enterFullscreenSmart(landscape=false){
+  if(isMacDesktop){ // Macは実全画面
+    enterFullscreenInternal(landscape);
+  } else if (isIOSPhone){ // iPhoneは擬似へ
+    document.documentElement.classList.add('pseudo-fs');
+  } else if (isIOSPad){ // iPadは実→失敗なら擬似
+    enterFullscreenInternal(landscape);
+  } else { // その他は実→失敗なら擬似
+    enterFullscreenInternal(landscape);
+  }
+}
+async function exitFullscreenSmart(){
+  if(document.fullscreenElement || document.webkitFullscreenElement){
+    await exitFsFn();
+  }
+  document.documentElement.classList.remove('pseudo-fs');
 }
 
-fsBtn.onclick = ()=> enterFullscreen(false);
-fsLandBtn.onclick = ()=> enterFullscreen(true);
+fsBtn.onclick = ()=> enterFullscreenSmart(false);
+fsLandBtn.onclick = ()=> enterFullscreenSmart(true);
 pseudoBtn.onclick = ()=> document.documentElement.classList.add('pseudo-fs');
-exitFs.onclick = ()=> exitFullscreen();
+exitFs.onclick = ()=> exitFullscreenSmart();
 refreshFs.onclick = ()=> applyBtn.click();
-
-
-// Default: center mode ON
-document.addEventListener('DOMContentLoaded', ()=>{
-  previewWrap.classList.add('center');
-  centerBtn.classList.add('toggled');
-});
 
 // Center toggle
 centerBtn.onclick = ()=>{
@@ -276,6 +271,21 @@ function onFsChange(){
 }
 document.addEventListener('fullscreenchange', onFsChange);
 document.addEventListener('webkitfullscreenchange', onFsChange);
+
+// Emergency exits: ESC / 'q' / double-tap
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape' || e.key.toLowerCase() === 'q'){
+    exitFullscreenSmart();
+  }
+});
+let lastTap = 0;
+document.addEventListener('touchend', ()=>{
+  const now = Date.now();
+  if(now - lastTap < 300){
+    exitFullscreenSmart();
+  }
+  lastTap = now;
+}, {passive:true});
 </script>
 </body>
 </html>
